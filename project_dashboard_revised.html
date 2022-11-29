@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<head>
+    <title>Musical Artist Analysis: 1955 - 2019</title>
+<style>
+
+path.link {
+  fill: none;
+  stroke: #666;
+  stroke-width: 0.5px;
+}
+
+circle {
+  fill: #ccc;
+  stroke: #fff;
+  stroke: black;
+  stroke-width: 0.25px;
+}
+
+text {
+  fill: #000;
+  font: 10px sans-serif;
+  pointer-events: none;
+}
+
+</style>
+<meta charset="utf-8">
+<title></title>
+</head>
+
+<body style="margin-top:10px; margin-left: 8px; margin-right:8px">
+<!--
+    <svg width="100%" height="35px"><text x=0 y=25 style="font-size: 1.25em; font-family:sans-serif; font-weight:bold">Influential Songs and Those that Connected Genres Over Time</text></svg>
+    <p id='topdescription' style="word-break: keep-all">These are some details These are some details These are some details These are some details These are some details  details</p>
+-->
+
+<!--<script type="text/javascript" src="../lib/d3.v5.min.js"></script> -->
+<script src='https://d3js.org/d3.v5.min.js'></script>
+<script src="https://unpkg.com/d3-simple-slider"></script>
+
+<link
+  rel="stylesheet"
+  href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css"
+  integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO"
+  crossorigin="anonymous"
+/>
+
+<script>
+
+    const limit = 100 
+
+    //read in arguments from URL
+    var i=0;
+    var telem;
+    var search_values=location.search.replace('\?','').split('&');
+    var query={}
+    for(i=0;i<search_values.length;i++){
+        telem=search_values[i].split('=');
+        query[telem[0]]=telem[1];
+    }
+        var default_artist
+        if (query["Artist"] == "*"){
+        var default_artist = "The Beatles"
+        }
+        else{
+        default_artist = query["Artist"].replace("%20", " ").replace("%20", " ").replace("%20", " ").replace("%20", " ")
+        }    
+
+    Promise.all([
+        d3.dsv(",", "project_master_links_data.csv", function(d) {
+            return {
+                source: d.source,
+                target: d.target,
+                weight: +d.weight,
+                sourceartist: d.sourceartist,
+                targetartist: d.targetartist,
+                sid: d.source,
+                tid: d.target
+            }
+        }),
+        d3.dsv(",", "project_master_song_information.csv", function(d, i) {
+            return {
+                id: d.id,
+                trackid: d.track_id,
+                name: d.name,
+                artist: d.artist,
+                earliest_date: d.earliest_date,
+                highest_rank: +d.highest_rank,
+                year: +d.year,
+                danceability: +d.danceability,
+                energy: +d.energy,
+                key: +d.key,
+                loudness: +d.loudness,
+                mode: +d.mode,
+                speechiness: +d.speechiness,
+                acousticness: +d.acousticness,
+                instrumentalness: +d.instrumentalness,
+                liveness: +d.liveness,
+                valence: +d.valence,
+                tempo: +d.tempo,
+                love_and_passion: +d.Love_and_Passion,
+                love_and_flirty: +d.Love_and_Flirty,
+                feel_good: +d.Feel_Good,
+                dance_and_movement: +d.Dance_and_Movement,
+                life: +d.Life,
+                spiritual_and_religious: +d.Spiritual_and_Religious,
+                connections_and_loss: +d.Connections_and_Loss,
+                love_and_crazy: +d.Love_and_Crazy,
+                explicit: +d.Explicit,
+                primary_theme: d.PrimaryTheme
+            }
+        })
+       
+    ]).then(function(datagroup) {
+
+        
+        const linkdata=datagroup[0]  // now out edges
+        const nodedata=datagroup[1]  // now out songs
+
+        console.log('first load-out degree')
+        console.log(nodedata)
+        console.log(linkdata)
+        
+        var width = 900,
+        height = 525;
+
+        var ArtistSelectionArea = d3.select("body").append("svg")
+            .attr("id", 'artistselectionarea')
+            .attr('x', 0)
+            .attr('y', 200)
+            .attr('width', 1600)
+            .attr('height', 40)
+
+        var canvas = d3.select("body").append("g")
+            .attr('width', 1600)
+            .attr('height', 1000)
+
+        var artist_selection_header = ArtistSelectionArea.append("text")
+            .attr("y", 20)
+            .attr("x",(width + 10) * 0)
+            .attr("id", "artist_selection_header")
+            .text("Select Artist")
+            .style("font-family", "sans-serif")
+            .style("font-size", '1em')
+            .style('font-weight', 'bold')
+            .attr("text-anchor", "left");
+
+        var dropdown = d3.select("body").append('select')
+            .attr('id', 'artistdropdown')
+            
+        var artiststats = d3.select("body").append('svg') 
+            .attr('id', 'artiststats')
+            .attr('x', width)
+            .attr('y', 20)
+            .attr('width', 800)
+            .attr('height', 30)
+        
+        artiststats.append('text')
+            .attr('id', 'firstyear')   
+            .text('placeholder')
+            .attr('transform', 'translate(26,18)');
+
+        artiststats.append('text')
+            .attr('id', 'highestrank') 
+            .text('placeholder')   
+            .attr('transform', 'translate(340, 18)');   
+        
+        listofartists = [new Set(nodedata.map(function(e){ return (e.artist);} )  )][0];
+        sortedartists = Array.from(listofartists).sort();
+        console.log('artist list')
+        console.log(listofartists)
+
+        var options = dropdown.selectAll("option")
+            .data(sortedartists)
+            .enter()
+            .append("option")
+            .property("selected", function(d){ return d === default_artist; })
+
+        options
+            .text(function(d) {
+                return d ;//.artist;
+            })
+            .attr("value", function(d) {
+                return d; //.id;
+            });
+
+        dropdown.on("change", function(){
+            SelectedArtist = this.options[this.selectedIndex].value
+            //SelectedID = this.options[this.selectedIndex].value
+            console.log(SelectedArtist)
+            //console.log(SelectedID)
+            newdata = updatedata(SelectedArtist)
+            shownetwork(newdata);
+        });    
+
+        var master_canvas = d3.select("body").append("svg")
+            .attr('id', 'mastercanvas')
+            .attr('width', 1800)
+            .attr('height', 750)
+            //.attr('y',200)
+            //.style('background-color', 'lightblue')
+
+        master_canvas
+            .on('click', function(){
+                console.log('hiding info')
+                svg_song_info
+                    .selectAll('text')
+                    .remove()
+            })
+
+        var svg_graph = master_canvas.append('svg')
+            .attr("id", 'svg_graph')
+            .attr("width", 900)
+            .attr("height", 800)
+            .attr("x", (width + 10) * 0)
+            .attr('y', 30)
+            .attr('class', 'mainchart')
+            
+        var svg_song_info = master_canvas.append('svg')
+            .attr('id', 'svg_info')
+            .attr("width", width)
+            .attr("height", height)
+            .attr("x", (width + 10) * 2)
+            .attr('y', 30)
+
+        var graph_header = master_canvas.append("text")
+            .attr("y", 40)
+            .attr("x",(width + 10) * 0)
+            .attr("id", "graph_header")
+            .text("Song Relationships")
+            .style("font-family", "sans-serif")
+            .style("font-size", '1em')
+            .style('font-weight', 'bold')
+            .attr("text-anchor", "left");
+
+        var graph_subheader = master_canvas.append("text")
+            .attr("y", 60)
+            .attr("x",(width + 10) * 0)
+            .attr("id", "graph_subheader")
+            .text("Includes the strongest " + limit + " relationships between songs based on TF-IDF lyrical analysis")
+            .style("font-family", "sans-serif")
+            .style("font-size", '0.75em')
+            .attr("text-anchor", "left");
+
+        var colorarray = {
+            'Love and Crazy':"#af0225",
+            'Love and Passion':"red",
+            'Love and Flirty':"#fa5c2e",
+            'Feel Good':"orange",
+            'Dance and Movement':"#f0f921",
+            'Life':"#2f9959",
+            'Spiritual and Religious':"#93c3df",
+            'Connections and Loss':"#2f7ebc",
+            'Explicit':"#1e1e1e"}
+
+        
+
+        var legend = master_canvas.append("g")
+            .attr('x',0)
+            .attr('y',0)
+        
+        legend.append('circle')
+            .attr('r', 5)
+            .style('fill', 'white')
+            .attr('transform', 'translate(10, 80)');
+
+        legend.append('text')
+            .attr('id', 'legendselectedartist')
+            .text('placeholder')
+            .attr('transform', 'translate(20, 84)');
+
+        circley = 93;
+        texty = 97;
+        Object.entries(colorarray).forEach(([key, value]) => {
+               
+            legend.append('circle')
+                .attr('r', 5)
+                .style('fill', value)
+                .attr('transform', 'translate(10, ' + circley + ')');
+            
+            circley = circley + 13
+
+            legend.append('text')
+                .text(key)
+                .attr('transform', 'translate(20, ' + texty + ')');
+
+            texty = texty + 13
+        });
+
+        var songinfo_header = master_canvas.append("text")
+            .attr("y", 20)
+            .attr("x",(width + 10) * 2)
+            .attr("id", "songinfo_header")
+            .text("Selected Song Information")
+            .style("font-family", "sans-serif")
+            .style("font-size", '1em')
+            .style('font-weight', 'bold')
+            .attr("text-anchor", "left");      
+
+        // miniheight=100
+        // miniwidth=325
+
+        // var mini_danceability = master_canvas.append("svg")
+        //     .attr('id','danceability')
+        //     .attr('x', 0)
+        //     .attr('y', 530)
+        //     .attr('height', miniheight)
+        //     .attr('width', miniwidth)
+
+        // mini_danceability.append('text')
+        //     .text('Danceability')
+        //     .attr('x',0)
+        //     .attr('y',10)
+       
+        // var mini_energy = master_canvas.append("svg")
+        //     .attr('id','energy')  
+        //     .attr('x', 345)
+        //     .attr('y', 530)
+        //     .attr('height', miniheight)
+        //     .attr('width', miniwidth)
+  
+        // mini_energy.append('text')
+        //     .text('Energy')
+        //     .attr('x',0)
+        //     .attr('y',10)
+
+        // var mini_key = master_canvas.append("svg")
+        //     .attr('id','key')
+        //     .attr('x', 690)
+        //     .attr('y', 530)
+        //     .attr('height', miniheight)
+        //     .attr('width', miniwidth)
+            
+        // mini_key.append('text')
+        //     .text('Key')
+        //     .attr('x',0)
+        //     .attr('y',10)    
+
+        // var mini_loudness = master_canvas.append("svg")
+        //     .attr('id','loudness')
+        //     .attr('x', 1035)
+        //     .attr('y', 530)
+        //     .attr('height', miniheight)
+        //     .attr('width', miniwidth)
+
+        // mini_loudness.append('text')
+        //     .text('Loudness')
+        //     .attr('x',0)
+        //     .attr('y',10)
+
+        // var mini_speechiness = master_canvas.append("svg")
+        //     .attr('id','speechiness')
+        //     .attr('x', 1380)
+        //     .attr('y', 530)
+        //     .attr('height', miniheight)
+        //     .attr('width', miniwidth)
+
+        // mini_speechiness.append('text')
+        //     .text('Speechiness')
+        //     .attr('x',0)
+        //     .attr('y',10)
+
+        // var mini_acousticness = master_canvas.append("svg")
+        //     .attr('id','acousticness')
+        //     .attr('x', 0)
+        //     .attr('y', 650)
+        //     .attr('height', miniheight)
+        //     .attr('width', miniwidth)
+
+        // mini_acousticness.append('text')
+        //     .text('Acousticness')
+        //     .attr('x',0)
+        //     .attr('y',10)
+
+        // var mini_instrumentalness = master_canvas.append("svg")
+        //     .attr('id','instrumentalness')  
+        //     .attr('x', 355)
+        //     .attr('y', 650)
+        //     .attr('height', miniheight)
+        //     .attr('width', miniwidth)
+
+        // mini_instrumentalness.append('text')
+        //     .text('Instrumentalness')
+        //     .attr('x',0)
+        //     .attr('y',10)
+
+        // var mini_liveness = master_canvas.append("svg")
+        //     .attr('id','liveness')
+        //     .attr('x', 690)
+        //     .attr('y', 650)
+        //     .attr('height', miniheight)
+        //     .attr('width', miniwidth)
+
+        // mini_liveness.append('text')
+        //     .text('Liveness')
+        //     .attr('x',0)
+        //     .attr('y',10) 
+            
+        // var mini_valence = master_canvas.append("svg")
+        //     .attr('id','valence')
+        //     .attr('x', 1035)
+        //     .attr('y', 650)
+        //     .attr('height', miniheight)
+        //     .attr('width', miniwidth)
+
+        // mini_valence.append('text')
+        //     .text('Valence')
+        //     .attr('x',0)
+        //     .attr('y',10)
+
+        // var mini_tempo = master_canvas.append("svg")
+        //     .attr('id','tempo')
+        //     .attr('x', 1380)
+        //     .attr('y', 650)
+        //     .attr('height', miniheight)
+        //     .attr('width', miniwidth)
+            
+        // mini_tempo.append('text')
+        //     .text('Tempo')
+        //     .attr('x',0)
+        //     .attr('y',10)
+
+        var tooltip = d3.select('body')
+            .append('div')
+            .attr('id', 'tooltip')
+            .style('position', 'absolute')
+            .style('opacity', '0')
+            .style('background-color', 'black')
+            .style('color', 'white')
+            .style('font-size', '0.75em')
+            .style('padding', '5px')
+            .text('placeholder')
+            
+
+        // const min_danceability = d3.min(nodedata, d => d.danceability)
+        // const max_danceability = d3.max(nodedata, d => d.danceability)
+        // const min_energy = d3.min(nodedata, d => d.energy)
+        // const max_energy = d3.max(nodedata, d => d.energy)
+        // const min_key = d3.min(nodedata, d => d.key)
+        // const max_key = d3.max(nodedata, d => d.key)
+        // const min_loudness = d3.min(nodedata, d => d.loudness)
+        // const max_loudness = d3.max(nodedata, d => d.loudness)
+        // const min_speechiness = d3.min(nodedata, d => d.speechiness)
+        // const max_speechiness = d3.max(nodedata, d => d.speechiness)
+        // const min_acousticness = d3.min(nodedata, d => d.acousticness)
+        // const max_acousticness = d3.max(nodedata, d => d.acousticness)
+        // const min_instrumentalness = d3.min(nodedata, d => d.instrumentalness)
+        // const max_instrumentalness = d3.max(nodedata, d => d.instrumentalness)
+        // const min_liveness = d3.min(nodedata, d => d.liveness)
+        // const max_liveness = d3.max(nodedata, d => d.liveness)
+        // const min_valence = d3.min(nodedata, d => d.valence)
+        // const max_valence = d3.max(nodedata, d => d.valence)
+        // const min_tempo = d3.min(nodedata, d => d.tempo)
+        // const max_tempo = d3.max(nodedata, d => d.tempo)
+
+        // scale_danceability = d3.scaleLinear()
+        //     .range([miniheight-10, 0])
+        //     .domain([min_danceability, max_danceability])
+
+        // scale_energy = d3.scaleLinear()
+        //     .range([miniheight-10, 0])
+        //     .domain([min_energy, max_energy])
+
+        // scale_key = d3.scaleLinear()
+        //     .range([miniheight-10, 0])
+        //     .domain([min_key, max_key])
+
+        // scale_loudness = d3.scaleLinear()
+        //     .range([miniheight-10, 0])
+        //     .domain([min_loudness, max_loudness])
+
+        // scale_speechiness = d3.scaleLinear()
+        //     .range([miniheight-10, 0])
+        //     .domain([min_speechiness, max_speechiness])
+
+        // scale_acousticness = d3.scaleLinear()
+        //     .range([miniheight-10, 0])
+        //     .domain([min_acousticness, max_acousticness])
+
+        // scale_instrumentalness = d3.scaleLinear()
+        //     .range([miniheight-10, 0])
+        //     .domain([min_instrumentalness, max_instrumentalness])
+
+        // scale_liveness = d3.scaleLinear()
+        //     .range([miniheight-10, 0])
+        //     .domain([min_liveness, max_liveness])
+
+        // scale_valence = d3.scaleLinear()
+        //     .range([miniheight-10, 0])
+        //     .domain([min_valence, max_valence])
+
+        // scale_tempo = d3.scaleLinear()
+        //     .range([miniheight-10, 0])
+        //     .domain([min_tempo, max_tempo])
+
+
+        function updatedata(SelectedArtist){
+        
+            
+            var linkdatacopy = linkdata
+            var nodedatacopy = nodedata
+            
+            console.log('Artist')
+            console.log(SelectedArtist)
+
+            const sort = function(a,b){return b.weight - a.weight}
+            
+            
+            filteredlinks=linkdatacopy.filter(function(d) { return (d.sourceartist == SelectedArtist || d.targetartist == SelectedArtist); }).sort(sort).filter(function(d,i) { return i < limit;}); 
+            filterednodes=nodedatacopy.filter(function(d) { return d.artist == SelectedArtist;});
+
+
+            var minirollups = {}
+
+            // minirollups['danceability']=d3.nest().key(function(d){return d.year;}).rollup(function(v) {return d3.mean(v, function(d) {return d.danceability;})}).sortKeys((a, b) => d3.ascending(+a, +b)).entries(filterednodes)
+            // minirollups['energy']=d3.nest().key(function(d){return d.year;}).rollup(function(v) {return d3.mean(v, function(d) {return d.energy;})}).sortKeys((a, b) => d3.ascending(+a, +b)).entries(filterednodes)
+            // minirollups['key']=d3.nest().key(function(d){return d.year;}).rollup(function(v) {return d3.mean(v, function(d) {return d.key;})}).sortKeys((a, b) => d3.ascending(+a, +b)).entries(filterednodes)
+            // minirollups['loudness']=d3.nest().key(function(d){return d.year;}).rollup(function(v) {return d3.mean(v, function(d) {return d.loudness;})}).sortKeys((a, b) => d3.ascending(+a, +b)).entries(filterednodes)
+            // minirollups['speechiness']=d3.nest().key(function(d){return d.year;}).rollup(function(v) {return d3.mean(v, function(d) {return d.speechiness;})}).sortKeys((a, b) => d3.ascending(+a, +b)).entries(filterednodes)
+            // minirollups['acousticness']=d3.nest().key(function(d){return d.year;}).rollup(function(v) {return d3.mean(v, function(d) {return d.acousticness;})}).sortKeys((a, b) => d3.ascending(+a, +b)).entries(filterednodes)
+            // minirollups['instrumentalness']=d3.nest().key(function(d){return d.year;}).rollup(function(v) {return d3.mean(v, function(d) {return d.instrumentalness;})}).sortKeys((a, b) => d3.ascending(+a, +b)).entries(filterednodes)
+            // minirollups['liveness']=d3.nest().key(function(d){return d.year;}).rollup(function(v) {return d3.mean(v, function(d) {return d.liveness;})}).sortKeys((a, b) => d3.ascending(+a, +b)).entries(filterednodes)
+            // minirollups['valence']=d3.nest().key(function(d){return d.year;}).rollup(function(v) {return d3.mean(v, function(d) {return d.valence;})}).sortKeys((a, b) => d3.ascending(+a, +b)).entries(filterednodes)
+            // minirollups['tempo']=d3.nest().key(function(d){return d.year;}).rollup(function(v) {return d3.mean(v, function(d) {return d.tempo;})}).sortKeys((a, b) => d3.ascending(+a, +b)).entries(filterednodes)
+
+            console.log(filteredlinks)
+                        
+            filteredsources = filteredlinks.map(function(e){ return e.sid;} )
+            filteredtargets = filteredlinks.map(function(e){ return e.tid;} )
+            requirednodeset = new Set(filteredsources.concat(filteredtargets))
+            console.log('requirednodeset')
+            console.log(requirednodeset)
+ 
+            
+            console.log('nodedatacopy at time of new artist filtering')
+            console.log(nodedatacopy)
+
+            requirednodes = nodedatacopy.filter(function(d) { return requirednodeset.has(d.id);})
+            console.log(requirednodes)
+            
+            var nodesforchart={}
+            requirednodes.forEach((element)=> {
+                //console.log(element)
+                nodesforchart[element['id']]=element;
+            });
+           
+            combineddata={}
+            combineddata['nodes']=nodesforchart
+            combineddata['links']=filteredlinks
+            combineddata['minirollups'] = minirollups
+            
+            console.log(combineddata)
+
+            return combineddata
+        };
+
+
+        ////////////////////////////////////// DEGREE CENTRALITY
+        function shownetwork(newdata){
+
+            hidesonginfo()
+
+            d3.select('#legendselectedartist')
+                .text(SelectedArtist)
+
+            firstyearvalue = d3.min(filterednodes, d => d.year)
+            highestrankvalue = d3.min(filterednodes, d => d.highest_rank)
+            console.log('info for header')
+            
+
+            svg = d3.select('svg#svg_graph')
+
+            links = newdata['links']
+            nodes = newdata['nodes']
+            minirollups = newdata['minirollups']
+
+
+            d3.select('#firstyear')
+                .text('First year with a song on the charts: ' + firstyearvalue)
+                .style("font-family", "sans-serif")
+                .style("font-size", '1em')
+                .attr("text-anchor", "left");
+
+            d3.select('#highestrank')    
+                .text('Highest rank: ' + highestrankvalue)
+                .style("font-family", "sans-serif")
+                .style("font-size", '1em')
+                .attr("text-anchor", "left");
+
+            console.log('shownetwork is TRIGGERED')
+            console.log('Node Qty: ', Object.keys(nodes).length)
+            //console.log(nodes)
+            console.log('Link Qty: ', links.length)
+            //console.log(links)
+
+            ///////////////////////
+
+            var force = d3.forceSimulation(d3.values(nodes))
+                .force("link", d3.forceLink(links).id(function(d){return d.id;}).distance(function(d){return (d.weight * 75);}))
+                .force('center', d3.forceCenter(width / 2, (height / 2)+50))
+                .force("x", d3.forceX())
+                .force("y", d3.forceY())
+                .force("charge", d3.forceManyBody().strength(-45))
+                .alphaTarget(0.25);
+                
+
+            // create Paths
+            
+            svg.selectAll(".pathgroup")
+                .remove();
+
+            var pathgroup = svg
+                .append('g')
+                .attr("class", "pathgroup");
+
+            var path = pathgroup.selectAll('line')
+                .data(links)
+                .enter()
+                .append("line")
+                .style("stroke", "grey")
+                .style("stroke-width", "0.25")
+                .attr("class", "link");
+
+            svg.selectAll("#nodegroup")
+                .remove();
+
+            var nodegroup = svg
+                .append('g')
+                .attr("id", "nodegroup");
+        
+            var node = nodegroup.selectAll(".node")
+                .data(force.nodes())
+                .enter()
+                .append("g")
+                .attr("class", "node")
+                .attr("id", function(d){
+                    return d.source;
+                })
+                .on('mouseover', function(d){
+                    tooltip
+                        .html(d.name + 
+                            '<br>by ' + d.artist + 
+                            '<br>Primary theme: ' + d.primary_theme + 
+                            '<br>----------------------' + 
+                            '<br>Love/Crazy: ' + formatAsPercent(d.love_and_crazy) + 
+                            '<br>Love/Passion: ' + formatAsPercent(d.love_and_passion) +
+                            '<br>Love/Flirty: ' + formatAsPercent(d.love_and_flirty) +
+                            '<br>Feel Good: ' + formatAsPercent(d.feel_good) +
+                            '<br>Dance/Movement: ' + formatAsPercent(d.dance_and_movement) +
+                            '<br>Life: ' + formatAsPercent(d.life) +
+                            '<br>Spiritual/Religious: ' + formatAsPercent(d.spiritual_and_religious) +
+                            '<br>Connections/Loss: ' + formatAsPercent(d.connections_and_loss) +
+                            '<br>Explicit: ' + formatAsPercent(d.explicit)
+                            )
+                        .style('left', (event.pageX+10) + 'px')
+                        .style('top', (event.pageY) + 'px')
+                    return tooltip.style('opacity',1)
+                })
+                .on('mousemove', function(d){
+                    tooltip
+                        .style('left', (event.pageX+10) + 'px')
+                        .style('top', (event.pageY) + 'px')
+                })
+                .on('mouseout', function(d){
+                    tooltip.style('opacity',0)
+                })
+                .on('click', function(d){
+                    showsonginfo(d);
+                    d3.event.stopPropagation();
+                });
+
+            node
+                .append("circle")
+                .attr("id", function(d){
+                    return d.source;
+                })
+                .attr("r", 7)
+                .style('fill', function(d){
+                    if (d.artist == SelectedArtist) {
+                        return "white";}
+                    else {
+                        //console.log(d.primary_theme)
+                        return colorarray[d.primary_theme];
+                    }
+                })
+
+            node.call(d3.drag()
+                .on("start", dragstarted)
+                .on("drag", dragged)
+                .on("end", dragended))
+                .on("dblclick", dblclick);
+              
+            
+
+            node
+                .append("text")
+                .text(function (d) {
+                    return (d.name);
+                })
+                .style("text-anchor", "left")
+                .style("fill", "#555")
+                .style("font-family", "Arial")
+                .style("font-size", 8)
+                //.style("font-weight", "bold")
+                .style("visibility", function(d){
+                    if (d.artist == SelectedArtist){
+                        return "visible";
+                    }
+                    else {
+                        return "hidden";
+                    }
+                })
+                
+
+            force.on('tick', function(){
+                path
+                    .attr("x1", function(d) {return d.source.x})
+                    .attr("y1", function(d) {return d.source.y})
+                    .attr("x2", function(d) {return d.target.x})
+                    .attr("y2", function(d) {return d.target.y});
+                node
+                    .attr("transform", function(d) {
+                        return "translate(" + d.x + "," + d.y + ")";
+                    });
+  
+            });
+
+            function populateminichart(minisvg, miniscale, minidata){
+                console.log(minisvg)
+                var scale_year = d3.scaleBand()
+                    .range([0, miniwidth])
+                    .domain(minidata.map(function(d) { return d.key; }))
+                    .padding(0.2)
+
+                var minichart = d3.select('#' + minisvg)
+
+                console.log(minidata)
+
+                minichart.selectAll("#bargroup_" + minisvg)
+                    .remove();
+
+                var bargroup = minichart
+                    .append('g')
+                    .attr("id", "bargroup_" + minisvg);
+            
+                var bars = bargroup.selectAll(".rect")
+                //minichart.selectAll('rect')
+                    //.remove()
+                    .data(minidata)
+                    .enter()
+                    .append('rect')
+                    .attr('class','rect')
+                    .attr('x', function(d){return scale_year(d.key);})
+                    .attr('y', function(d){return miniscale(d.value) + 10;})
+                    .attr('height', function(d){return miniheight - miniscale(d.value);})
+                    .attr('width', scale_year.bandwidth())
+                    
+
+            }
+
+            // populateminichart('danceability', scale_danceability, minirollups['danceability'])
+            // populateminichart('energy', scale_energy, minirollups['energy'])
+            // populateminichart('key', scale_key, minirollups['key'])
+            // populateminichart('loudness', scale_loudness, minirollups['loudness'])
+            // populateminichart('speechiness', scale_speechiness, minirollups['speechiness'])
+            // populateminichart('instrumentalness', scale_instrumentalness, minirollups['instrumentalness'])
+            // populateminichart('acousticness', scale_acousticness, minirollups['acousticness'])
+            // populateminichart('liveness', scale_liveness, minirollups['liveness'])
+            // populateminichart('valence', scale_valence, minirollups['valence'])
+            // populateminichart('tempo', scale_tempo, minirollups['tempo'])
+
+            function formatAsPercent(num) {
+                    return new Intl.NumberFormat('default', {
+                        style: 'percent',
+                        minimumFractionDigits: 5,
+                        maximumFractionDigits: 5,
+                    }).format(num);
+                }   
+
+            function showsonginfo(songinfo){
+
+                            
+                
+                //console.log('showing information')
+                svg_song_info
+                    .selectAll('text')
+                    .remove()
+
+                svg_song_info
+                    .append('text')
+                    .text('Track: ' + songinfo.name)
+                    .style('font-size', '1em')
+                    .attr('x', '5px')
+                    .attr('y', '100px')
+
+                svg_song_info
+                    .append('text')
+                    .text('Artist: ' + songinfo.artist)
+                    .style('font-size', '1em')
+                    .attr('x', '5px')
+                    .attr('y', '130px')
+
+                svg_song_info  
+                    .append('text')
+                    .text('First year on charts: ' + songinfo.year)
+                    .style('font-size', '1em')
+                    .attr('x', '5px')
+                    .attr('y', '160px')
+
+                svg_song_info  
+                    .append('text')
+                    .text('Highest rank: ' + songinfo.highest_rank)
+                    .style('font-size', '1em')
+                    .attr('x', '5px')
+                    .attr('y', '190px')
+                    
+                svg_song_info  
+                    .append('text')
+                    .text(centtype + 'centrality: ' + formatAsPercent(songinfo.centrality) ) //+ ' ' + songinfo.centrality)
+                    .style('font-size', '1em')
+                    .attr('x', '5px')
+                    .attr('y', '220px')
+            }
+
+            function hidesonginfo(){
+                console.log('hiding info')
+                svg_song_info
+                    .selectAll('text')
+                    .remove()
+            }
+
+            function dragstarted(d) {
+                if (!d3.event.active) force.alphaTarget(0.25).restart();
+                d.fx = d.x;
+                d.fy = d.y;
+                var thiscircle = d3.select(this).select("circle")
+                if (d.fixed == false) {
+                    d.oldcolor = thiscircle.style("fill")
+                    console.log(d.oldcolor)
+                }
+                d.fixed = true;
+                thiscircle.style("fill","yellow");
+            };
+
+            function dragged(d) {
+                d.fx = d3.event.x;
+                d.fy = d3.event.y;
+            };
+
+            function dragended(d) {
+                if (!d3.event.active) force.alphaTarget(0);
+                if (d.fixed == true) {
+                    d.fx = d.x;
+                    d.fy = d.y;
+                }
+                else {
+                    d.fx = null;
+                    d.fy = null;
+
+                }
+            };        
+
+            function dblclick(d) {
+                var thiscircle = d3.select(this).select("circle")
+                thiscircle.style("fill", function(d){
+                    if (d.artist == SelectedArtist) {
+                        return "white";}
+                    else {
+                        console.log(d.primary_theme)
+                        return colorarray[d.primary_theme];
+                    }
+                })
+                d.fixed=false;
+                d.fx=null;
+                d.fy=null;
+            };
+
+
+        };
+
+
+
+
+        /////////////////////////////////////////////////////////////
+        var SelectedArtist = default_artist
+        newdata = updatedata(SelectedArtist);
+        shownetwork(newdata);
+        //shownetwork(newdata['between'], 'svg#svg_between', 'Betweenness ');
+        
+        
+
+
+
+    }).catch(function(error) {
+        console.log(error);
+    });
+
+</script>
+
+<!--
+<div><p id="value-step"></p></div>
+-->
+</body>
+</html>
